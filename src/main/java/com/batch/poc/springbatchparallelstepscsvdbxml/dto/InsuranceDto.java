@@ -1,25 +1,24 @@
-package com.batch.poc.springbatchparallelstepscsvdbxml.entity;
+package com.batch.poc.springbatchparallelstepscsvdbxml.dto;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.xml.bind.annotation.XmlAccessOrder;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorOrder;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlRootElement;
 
-@Entity
-@Table
-public class Insurance {
+@XmlAccessorType(XmlAccessType.FIELD)
+@XmlAccessorOrder(XmlAccessOrder.UNDEFINED)
+@XmlRootElement(name = "insurance")
+public class InsuranceDto {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "policy_id")
+	@XmlElement(name = "policy-id")
 	private Long policyID;
 	private String statecode;
 	private String county;
 	private String line;
 	private String construction;
-	@Column(name = "point_granularity")
+	@XmlElement(name = "point-granularity")
 	private Integer point_granularity;
 
 	public Long getPolicyID() {
@@ -70,13 +69,13 @@ public class Insurance {
 		this.point_granularity = point_granularity;
 	}
 
-	public Insurance() {
+	public InsuranceDto() {
 
 	}
 
 	@Override
 	public String toString() {
-		return "Insurance [policyID=" + policyID + ", statecode=" + statecode + ", county=" + county + ", line=" + line
+		return "InsuranceDto [policyID=" + policyID + ", statecode=" + statecode + ", county=" + county + ", line=" + line
 				+ ", construction=" + construction + ", point_granularity=" + point_granularity + "]";
 	}
 

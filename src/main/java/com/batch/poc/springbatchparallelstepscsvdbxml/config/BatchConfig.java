@@ -30,13 +30,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.batch.poc.springbatchparallelstepscsvdbxml.dto.InsuranceDto;
 import com.batch.poc.springbatchparallelstepscsvdbxml.entity.Insurance;
 import com.batch.poc.springbatchparallelstepscsvdbxml.repo.InsuranceRepo;
 
@@ -48,22 +49,22 @@ public class BatchConfig {
 	private JobBuilderFactory jobBuilderFactory;
 	@Autowired
 	private StepBuilderFactory stepBuilderFactory;
-	
+
 	@Autowired
 	private DataSource datasource;
 
 	@Value("${csv1}")
 	private String csv1;
-	
+
 	@Value("${csv2}")
 	private String csv2;
-	
+
 	@Value("${insurance}")
 	private String insurance;
-	
+
 	@Autowired
 	private InsuranceRepo repo;
-	
+
 	@Bean
 	public Job job() {
 		return jobBuilderFactory.get("PARALLEL").incrementer(new RunIdIncrementer()).start(splitFlow()).next(step3())
@@ -91,40 +92,36 @@ public class BatchConfig {
 	@Bean
 	public TaskExecutor taskExecutor() {
 		SimpleAsyncTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor();
-		taskExecutor.setConcurrencyLimit(5);
+		taskExecutor.setConcurrencyLimit(10);
 		return taskExecutor;
 	}
 
 	@Bean
 	public Step step1() {
 
-		return stepBuilderFactory.get("CSV1 TO DB").<Insurance, Insurance>chunk(100).reader(reader(csv1)).writer(writer())
-				.build();
+		return stepBuilderFactory.get("CSV1 TO DB").<Insurance, Insurance>chunk(100).reader(reader("fcsvinsurance.csv"))
+				.writer(writer()).build();
 	}
 
 	@Bean
 	public Step step2() {
 
-		return stepBuilderFactory.get("CSV2 TO DB").<Insurance, Insurance>chunk(100).reader(reader(csv2)).writer(writer())
-				.build();
+		return stepBuilderFactory.get("CSV2 TO DB").<Insurance, Insurance>chunk(100).reader(reader("scsvinsurance.csv"))
+				.writer(writer()).build();
 	}
 
 	@Bean
 	public Step step3() {
 
-		return stepBuilderFactory.get("DB TO XML")
-				.<Insurance, Insurance>chunk(100)
-				.reader(dbReader())
-				.writer(xmlWriter())
-				.build();
+		return stepBuilderFactory.get("DB TO XML").<InsuranceDto, InsuranceDto>chunk(100).reader(dbReader())
+				.writer(xmlWriter()).build();
 	}
 
-	
 	@Bean
-	@Transactional(isolation = Isolation.SERIALIZABLE)
+	@Transactional
 	public ItemWriter<Insurance> writer() {
-		
-		return (insurances)->{
+
+		return (insurances) -> {
 			System.out.println(insurances);
 			repo.saveAll(insurances);
 		};
@@ -160,53 +157,47 @@ public class BatchConfig {
 		DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
 		tokenizer.setDelimiter(",");
 		tokenizer.setStrict(false);
-		tokenizer.setNames(new String[] {"policyID", "statecode", "county", "line", "construction", "point_granularity"});
+		tokenizer.setNames(
+				new String[] { "policyID", "statecode", "county", "line", "construction", "point_granularity" });
 		return tokenizer;
 	}
-	
+
 	@Bean
 	@StepScope
-	public JdbcCursorItemReader<Insurance> dbReader(){
-		JdbcCursorItemReader<Insurance> itemReader = new JdbcCursorItemReader<>();
+	public JdbcCursorItemReader<InsuranceDto> dbReader() {
+		JdbcCursorItemReader<InsuranceDto> itemReader = new JdbcCursorItemReader<>();
 		itemReader.setDataSource(datasource);
 		itemReader.setSql("select policy_id, statecode, county, line, construction, point_granularity from insurance");
-		itemReader.setRowMapper(new RowMapper<Insurance>() {		
+		itemReader.setRowMapper(new RowMapper<InsuranceDto>() {
 			@Override
-			public Insurance mapRow(ResultSet rs, int rowNum) throws SQLException {
-				Insurance insurance = new Insurance();
+			public InsuranceDto mapRow(ResultSet rs, int rowNum) throws SQLException {
+				InsuranceDto insurance = new InsuranceDto();
 				insurance.setPolicyID(rs.getLong("policy_id"));
 				insurance.setStatecode(rs.getString("statecode"));
 				insurance.setCounty(rs.getString("county"));
 				insurance.setLine(rs.getString("line"));
 				insurance.setConstruction(rs.getString("construction"));
 				insurance.setPoint_granularity(rs.getInt("point_granularity"));
-				
+
 				return insurance;
 			}
 		});
-		
+
 		return itemReader;
 	}
-	
-	
+
 	@Bean
-	public StaxEventItemWriter<Insurance> xmlWriter() {
-		return new StaxEventItemWriterBuilder<Insurance>()
-				.name("Insurance-Writer")
-				.marshaller(insuranceMarshaller())
-				.resource(new ClassPathResource(insurance))
-				.rootTagName("insurance")
-				.overwriteOutput(true)
-				.build();
+	public StaxEventItemWriter<InsuranceDto> xmlWriter() {
+		return new StaxEventItemWriterBuilder<InsuranceDto>().name("Insurance-Writer").marshaller(insuranceMarshaller())
+				.resource(new FileSystemResource(insurance)).rootTagName("insurance").overwriteOutput(true).build();
 
 	}
-	
+
 	@Bean
-	public Jaxb2Marshaller insuranceMarshaller() {	
+	public Jaxb2Marshaller insuranceMarshaller() {
 		Jaxb2Marshaller jaxb2Marshaller = new Jaxb2Marshaller();
-		jaxb2Marshaller.setClassesToBeBound(Insurance.class);
+		jaxb2Marshaller.setClassesToBeBound(InsuranceDto.class);
 		return jaxb2Marshaller;
 	}
-	
 
 }
